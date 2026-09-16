@@ -1,0 +1,7 @@
+household.db
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit
+.DS_Store
