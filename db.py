@@ -317,16 +317,24 @@ def seed_pantry_items(items):
     I only insert what's missing rather than upserting everything, so this is
     safe to run more than once without clobbering stock levels someone's
     already adjusted by hand. items is a list of
-    (name, category, unit, preferred_store) tuples; new items start with
-    stock equal to their threshold so the pantry list doesn't open with
-    everything flagged as running low.
+    (name, category, unit, preferred_store) tuples; new items start ONE UNIT
+    ABOVE their threshold (not equal to it) so the pantry list doesn't open
+    with everything flagged as running low - the low-stock check is
+    "stock <= threshold", so starting exactly at the threshold tripped it
+    immediately for every single seeded item.
     """
     existing = get_pantry_item_names()
     added = 0
     for name, category, unit, preferred_store in items:
         if name in existing:
             continue
-        add_pantry_item(name, category, unit, current_stock=1, low_stock_threshold=1, preferred_store=preferred_store)
+        threshold = 1
+        add_pantry_item(
+            name, category, unit,
+            current_stock=threshold + 1,
+            low_stock_threshold=threshold,
+            preferred_store=preferred_store,
+        )
         added += 1
     return added
 
