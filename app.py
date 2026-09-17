@@ -102,6 +102,45 @@ STARTER_ITEMS = [
     ("Febreze Plug-In Air Freshener", "Household", "pcs", "Home Bargains"),
 ]
 
+# A small set of everyday words people type instead of a receipt-exact name
+# ("bread" vs "Brioche Loaf"). Used by guess_category() below so the
+# category dropdown doesn't have to be set by hand for common items.
+CATEGORY_KEYWORDS = {
+    "bread": "Bakery", "loaf": "Bakery", "croissant": "Bakery", "bagel": "Bakery",
+    "milk": "Dairy & Eggs", "cheese": "Dairy & Eggs", "yogurt": "Dairy & Eggs",
+    "yoghurt": "Dairy & Eggs", "butter": "Dairy & Eggs", "eggs": "Dairy & Eggs", "egg": "Dairy & Eggs",
+    "chicken": "Meat & Fish", "beef": "Meat & Fish", "fish": "Meat & Fish", "mackerel": "Meat & Fish",
+    "bacon": "Meat & Fish", "sausage": "Meat & Fish", "mince": "Meat & Fish",
+    "apple": "Fruit & Veg", "banana": "Fruit & Veg", "orange": "Fruit & Veg", "tomato": "Fruit & Veg",
+    "potato": "Fruit & Veg", "onion": "Fruit & Veg", "carrot": "Fruit & Veg", "pepper": "Fruit & Veg",
+    "lettuce": "Fruit & Veg", "spinach": "Fruit & Veg", "grape": "Fruit & Veg",
+    "juice": "Drinks", "water": "Drinks", "coffee": "Drinks", "tea": "Drinks", "cola": "Drinks",
+    "rice": "Store Cupboard", "pasta": "Store Cupboard", "spaghetti": "Store Cupboard", "flour": "Store Cupboard",
+    "toilet": "Toiletries", "tissue": "Toiletries", "shampoo": "Toiletries", "soap": "Toiletries",
+    "nappies": "Toiletries", "nappy": "Toiletries", "wipes": "Toiletries",
+    "washing up": "Household", "dishwasher": "Household", "kitchen towel": "Household",
+    "air freshener": "Household", "batteries": "Household",
+    "frozen": "Frozen", "peas": "Frozen", "veggies": "Frozen",
+}
+
+
+def guess_category(item_name):
+    """Best-effort category guess from a typed item name, so nobody has to
+    think about categories for everyday items. Checks the starter list first
+    (exact name match), then falls back to the keyword list above. Returns
+    None if nothing matches, so the caller falls back to the manual dropdown.
+    """
+    name = item_name.strip().lower()
+    if not name:
+        return None
+    for starter_name, starter_category, _, _ in STARTER_ITEMS:
+        if starter_name.lower() == name:
+            return starter_category
+    for keyword, keyword_category in CATEGORY_KEYWORDS.items():
+        if keyword in name:
+            return keyword_category
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Sidebar: who's using the app, and page navigation
@@ -143,7 +182,8 @@ def render_shopping_list():
         submitted = st.form_submit_button("Add to list")
         if submitted:
             if item_name.strip():
-                db.add_shopping_item(item_name, quantity, category, current_user)
+                final_category = guess_category(item_name) or category
+                db.add_shopping_item(item_name, quantity, final_category, current_user)
                 st.rerun()
             else:
                 st.warning("Give the item a name first.")
