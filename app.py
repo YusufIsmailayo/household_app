@@ -11,6 +11,7 @@ notes I sent alongside this file.
 
 from datetime import date, timedelta
 
+import requests
 import streamlit as st
 
 import db
@@ -156,6 +157,51 @@ with st.sidebar.expander("Names", expanded=False):
 
 current_user = st.sidebar.radio("Who's this?", [name_a, name_b], horizontal=True)
 
+
+def _ntfy_topics():
+    """The two ntfy.sh push topics: (topic_a, topic_b) = (mine, my wife's).
+    Returns (None, None) if ntfy isn't configured in secrets - that's my
+    signal to skip sending, so the app still runs fine without it.
+    """
+    try:
+        return st.secrets.get("NTFY_TOPIC_A"), st.secrets.get("NTFY_TOPIC_B")
+    except Exception:
+        return None, None
+
+
+def notify_other(message):
+    """Push a notification to whichever of us ISN'T current_user, via ntfy.sh.
+
+    I originally matched on "current_user == name_a" (the sidebar slot), but
+    that breaks the moment either of us edits the "Your name"/"Partner's name"
+    boxes differently on our own phone - each phone keeps its own separate
+    session state, so the slots don't line up the same way on both devices.
+    Matching on the literal name text is more robust: as long as I keep
+    calling myself "Yusuf" when I pick myself in "Who's this?", this finds
+    the other person correctly no matter what either box says on either phone.
+
+    Fails silently if ntfy isn't configured or the request errors - a missed
+    push should never stop someone adding a shopping item.
+    """
+    topic_a, topic_b = _ntfy_topics()
+    if not topic_a or not topic_b:
+        # Temporary while I'm debugging why pushes aren't arriving - tells me
+        # on-screen whether ntfy secrets were even found. Strip this out once
+        # I've confirmed pushes work reliably.
+        st.toast("no push sent - NTFY_TOPIC_A/B not found in secrets", icon="\u26a0\ufe0f")
+        return
+    is_yusuf = "yusuf" in current_user.strip().lower()
+    recipient_topic = topic_b if is_yusuf else topic_a
+    try:
+        resp = requests.post(f"https://ntfy.sh/{recipient_topic}", data=message.encode("utf-8"), timeout=5)
+        if resp.status_code == 200:
+            st.toast(f"pushed to {recipient_topic}", icon="\U0001f514")
+        else:
+            st.toast(f"ntfy replied {resp.status_code} for {recipient_topic}", icon="\u26a0\ufe0f")
+    except Exception as e:
+        st.toast(f"push failed: {e}", icon="\u26a0\ufe0f")
+
+
 page = st.sidebar.radio(
     "Go to",
     ["🛒 Shopping List", "✅ Household Tasks", "📦 Grocery Stock"],
@@ -184,6 +230,7 @@ def render_shopping_list():
             if item_name.strip():
                 final_category = guess_category(item_name) or category
                 db.add_shopping_item(item_name, quantity, final_category, current_user)
+                notify_other(f"{current_user} added {item_name.strip()} to the shopping list")
                 st.rerun()
             else:
                 st.warning("Give the item a name first.")
@@ -213,6 +260,7 @@ def render_shopping_list():
                     st.rerun()
                 if bought:
                     db.mark_shopping_item(item["id"], current_user, bought=True)
+                    notify_other(f"{current_user} bought {item['item_name']}")
                     st.rerun()
 
     bought_items = db.get_shopping_list(include_bought=True)
@@ -250,6 +298,8 @@ def render_tasks():
         if submitted:
             if title.strip():
                 db.add_task(title, notes, assigned_to, due_date, current_user)
+                if assigned_to not in (current_user, "Either"):
+                    notify_other(f"{current_user} assigned you a task: {title.strip()}")
                 st.rerun()
             else:
                 st.warning("Give the task a title first.")
@@ -277,6 +327,7 @@ def render_tasks():
             st.rerun()
         if done:
             db.set_task_status(task["id"], "done")
+            notify_other(f"{current_user} marked '{task['title']}' as done")
             st.rerun()
 
     done_tasks = db.get_tasks(status="done")
@@ -311,6 +362,7 @@ def render_stock():
             else:
                 if c2.button("Add to list", key=f"restock_{item['id']}"):
                     db.add_shopping_item(item["name"], "", item["category"], current_user, pantry_item_id=item["id"])
+                    notify_other(f"{current_user} added {item['name']} to the shopping list (running low)")
                     st.rerun()
         st.divider()
 
