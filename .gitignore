@@ -5,3 +5,20 @@ __pycache__/
 .agents/skills/developing-with-streamlit
 .claude/skills/developing-with-streamlit
 .DS_Store
+
+# --- Never commit: secrets, working notes, drafts, private folders ---
+.env
+.env.*
+*.pem
+*.key
+credentials*.json
+token*.json
+HANDOFF*.md
+*handoff*
+social/
+Claude outputs/
+writing/
+drafts/
+article/
+_local/
+outreach/
